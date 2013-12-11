@@ -21,7 +21,7 @@ output wb_err_o;
 output wb_int_o;
 output [15:0] debug_out;
 
-assign debug_out = {fifo_rd_addr,fifo_wr,fifo_rd,wb_stb_i,wb_ack_o};
+assign debug_out = {fifo_dout};
 
 // This is used to force addressing errors on poor handshake implementation
 wire [4:0] int_addr;
@@ -80,7 +80,7 @@ always @(int_addr or wb_dat_i) begin
 		5:	rm_data_in <= wb_dat_i;
 		6:	rm_data_in <= wb_dat_i;
 		7:	rm_data_in <= wb_dat_i;
-		16:	fifo_din <= wb_dat_i;
+		//16:	fifo_din <= wb_dat_i;
 		default: rm_data_in <= 16'hAAAA;
 	endcase
 end
@@ -97,31 +97,29 @@ always @(int_addr or reg_map) begin
 		6:	rm_data_out <= reg_map[int_addr];
 		7:	rm_data_out <= reg_map[int_addr];
 		8:	rm_data_out <= reg_map[int_addr];
-		//16:	rm_data_out <= fifo_dout;
-		default: rm_data_out <= 16'd12345;
+		default: rm_data_out <= 16'd12346;
 	endcase
 end
 
 // Loop-back FIFO for testing
-wire burst_mode;
-assign burst_mode = ~(wb_cti_i == 3'b000);
-
-wire fifo_sel;
-assign fifo_sel = (int_addr == 5'h10) & wb_stb_i;
-wire fifo_wr;
 wire fifo_rd;
-wire fifo_rd_look;
-assign fifo_wr = burst_mode & fifo_sel & wb_ack_o & wb_we_i;
-assign fifo_rd = burst_mode & fifo_sel & wb_ack_o & ~wb_we_i;
+wire fifo_wr;
+assign fifo_rd  = ~(wb_cti_i == 3'b000) & (int_addr == 5'h10) & wb_stb_i & wb_ack_o & ~wb_we_i;
+assign fifo_wr  = ~(wb_cti_i == 3'b000) & (int_addr == 5'h11) & wb_stb_i & wb_ack_o &  wb_we_i;
 
-reg [15:0]		fifo_din;
+// FIFO read access cannot rely on data switch as it needs to look ahead
+assign fifo_rd_addr_incr = (wb_cti_i == 3'b001) & (int_addr == 5'h10) & wb_stb_i;
+
+wire [15:0]		fifo_din;
 wire [15:0]		fifo_dout;
 reg	 [9:0]		fifo_wr_addr;
 reg	 [9:0]		fifo_rd_addr;
 
 // Bypass register map when accessing the FIFO
 assign wb_dat_o = (fifo_rd) ? fifo_dout : rm_dat_o;
+assign fifo_din = (fifo_wr) ? wb_dat_i : 16'd0;
 
+// Auto-incremenet
 always @(posedge wb_clk_i) begin
 	if (wb_rst_i) begin
 		fifo_wr_addr <= 9'd0;
@@ -131,16 +129,14 @@ always @(posedge wb_clk_i) begin
 			fifo_wr_addr <= fifo_wr_addr + 9'd1;
 		else
 			fifo_wr_addr <= fifo_wr_addr;
-		if ((wb_cti_i == 3'b001) & fifo_sel & ~wb_we_i)
+		if (fifo_rd_addr_incr)
 			fifo_rd_addr <= fifo_rd_addr + 9'd1;
-		else if ((wb_cti_i == 3'b111) & fifo_sel & wb_we_i)
-			fifo_rd_addr <= fifo_rd_addr - 9'd1;
 		else
 			fifo_rd_addr <= fifo_rd_addr;
 	end
 end
 
-
+// Instantiate a generic dual port RAM module
 dp_ram rm_fifo(
 	// Write port
 	.a_clk(wb_clk_i), .a_wr(fifo_wr), .a_addr(fifo_wr_addr),

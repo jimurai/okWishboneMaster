@@ -79,9 +79,9 @@ class okWishboneMaster:
             pass
         return
 
-    def BurstRead(self, addr, N):
-        # Set address
-        self.dev.SetWireInValue(0x00, addr&0xFFFF)
+    def BurstRead(self, N):
+        # Set address to 16 - Fixed for burst mode
+        self.dev.SetWireInValue(0x00, 16)
         self.dev.UpdateWireIns()
         # Fetch the waveform from RAM
         read_buffer = bytearray(N*2)        
@@ -93,9 +93,9 @@ class okWishboneMaster:
         # Re-format the bytearray
         return np.frombuffer(read_buffer, dtype=self.dtype)
 
-    def BurstWrite(self, addr, data):
-        # Set address
-        self.dev.SetWireInValue(0x00, addr&0xFFFF)
+    def BurstWrite(self, data):
+        # Set address to 17 - Fixed for burst mode
+        self.dev.SetWireInValue(0x00, 17)
         self.dev.UpdateWireIns()
         # Serialise the data array into a bytearray
         writearray = bytearray(data.astype(self.dtype).tostring('C'))
@@ -148,13 +148,13 @@ if __name__ == '__main__':
     N = 16
     wave = np.arange(N,dtype=np.int16)
     print wave
-    okwbm.BurstWrite(16,wave[:4])
-    okwbm.BurstWrite(16,wave[4:8])
-    okwbm.BurstWrite(16,wave[8:12])
-    okwbm.BurstWrite(16,wave[12:])
+    okwbm.BurstWrite(wave[:4])
+    okwbm.BurstWrite(wave[4:8])
+    okwbm.BurstWrite(wave[8:12])
+    okwbm.BurstWrite(wave[12:])
     
-    print okwbm.BurstRead(16,4),
-    print okwbm.BurstRead(16,4),
-    print okwbm.BurstRead(16,4),
-    print okwbm.BurstRead(16,4)
+    print okwbm.BurstRead(4),
+    print okwbm.BurstRead(4),
+    print okwbm.BurstRead(4),
+    print okwbm.BurstRead(4)
     
